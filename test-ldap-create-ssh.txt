@@ -1,0 +1,94 @@
+Part1:
+##creating m1.small aws instance using cloudprovisioner
+$puppet node_aws create --image ami-edae6384 --keyname cloudprovisioner --type m1.small --login ec2-user
+
+# this will show the cloudprovisoner keyname details
+$puppet node_aws list_keynames
+
+#part of the below manifest file we will install and configure LDAP on above AWS instance
+
+#installation.pp
+
+//this will make sure ldap package is installed if missing
+Package {'open-ldap': //openldap package
+		ensure=> present,
+
+}
+
+//this will make sure ldap service is running and this will be up after server reboot
+Service {'open-ldap':
+	ensure=> running,
+	enable=> true,
+}
+
+
+
+Part 2:
+#puppet group creation and adding to the sudoers file
+//groupcreation.pp
+// this will create a new group called techops_dba
+$groups_hash = {
+      techops_dba => {
+        gid      => 3003,
+        ensure   => present,
+	subscribe => File ['/etc/security/access.conf'],
+      }
+}
+
+$sudoers_path= {
+	ensure => present,
+	subscribe => File['/etc/sudoers'],
+}
+
+
+Part3:
+//ntpsetup.pp
+//this will make sure ntp package and service available
+//from PE master we can run below command
+//puppet module install puppetlabs-ntp
+
+//this will make sure ntp package is installed if missing
+Package {'puppetlabs-ntp': puppetlabs-ntp package
+		ensure=> present,
+
+}
+
+//this will make sure NTP service is running and this will be up after server reboot
+Service {'ntp':
+	ensure=> running,
+	enable=> true,
+}
+
+Part 4:
+##creating m1.small aws 2nd instance using cloudprovisioner and allow to connect the ec2-user to machine 1 from machine 2 using ssh 
+$puppet node_aws create --image ami-edae6384 --keyname cloudprovisioner1 --type m1.small --login ec2-user
+
+//ssh-setup.pp
+$ ssh_authorized_key { 'cloudprovisioner1':
+		ensure => present,
+		user => 'ec2-user',
+		type => 'ssh-rsa',
+		key => '<public Key>',
+}
+
+Package {'openssh':
+		ensure => present,
+}
+
+Service { 'sshd':
+	ensure => running,
+	enable => true,
+}
+
+
+part 5:
+
+for testing all of the above we need to run 
+
+$puppet apply --noop installation.pp
+
+$puppet apply --noop groupcreation.pp
+
+$puppet apply --noop ntpsetup.pp
+
+$puppet apply --noop ssh-setup.pp
